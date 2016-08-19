@@ -19,8 +19,7 @@ class PresenceManager(models.Manager):
     def leave_all(self, channel_name):
         for presence in self.select_related('room').filter(channel_name=channel_name):
             room = presence.room
-            presence.delete()
-            room.broadcast_changed(removed=presence)
+            room.remove_presence(presence=presence)
 
 @python_2_unicode_compatible
 class Presence(models.Model):
@@ -78,12 +77,13 @@ class Room(models.Model):
             Group(self.channel_name).add(channel_name)
             self.broadcast_changed(added=presence)
 
-    def remove_presence(self, channel_name):
-        try:
-            presence = Presence.objects.get(room=self, channel_name=channel_name)
-        except Presence.DoesNotExist:
-            return
-        Group(room_channel_name).remove(user_channel_name)
+    def remove_presence(self, channel_name=None, presence=None):
+        if presence is None:
+            try:
+                presence = Presence.objects.get(room=self, channel_name=channel_name)
+            except Presence.DoesNotExist:
+                return
+        Group(room_channel_name).remove(presence.channel_name)
         presence.delete()
         self.broadcast_changed(removed=presence)
 
