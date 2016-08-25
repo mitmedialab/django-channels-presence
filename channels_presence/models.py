@@ -83,7 +83,7 @@ class Room(models.Model):
                 presence = Presence.objects.get(room=self, channel_name=channel_name)
             except Presence.DoesNotExist:
                 return
-        Group(self.channel_name).remove(presence.channel_name)
+        Group(self.channel_name).discard(presence.channel_name)
         presence.delete()
         self.broadcast_changed(removed=presence)
 
