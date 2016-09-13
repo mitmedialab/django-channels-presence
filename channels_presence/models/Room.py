@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import json
 from datetime import timedelta
 
 from django.db import models
@@ -8,34 +7,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.encoding  import python_2_unicode_compatible
 from django.utils.timezone import now
+from channels_presence.models.Presence import Presence
 
-from channels import Group
 from channels_presence.signals import presence_changed
-
-class PresenceManager(models.Manager):
-    def touch(self, channel_name):
-        self.filter(channel_name=channel_name).update(last_seen=now())
-
-    def leave_all(self, channel_name):
-        for presence in self.select_related('room').filter(channel_name=channel_name):
-            room = presence.room
-            room.remove_presence(presence=presence)
-
-@python_2_unicode_compatible
-class Presence(models.Model):
-    room = models.ForeignKey('Room', on_delete=models.CASCADE)
-    channel_name = models.CharField(max_length=255,
-            help_text="Reply channel for connection that is present")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
-    last_seen = models.DateTimeField(default=now)
-
-    objects = PresenceManager()
-
-    def __str__(self):
-        return self.channel_name
-
-    class Meta:
-        unique_together = [('room', 'channel_name')]
 
 class RoomManager(models.Manager):
     def add(self, room_channel_name, user_channel_name, user=None):
@@ -68,6 +42,7 @@ class Room(models.Model):
         return self.channel_name
 
     def add_presence(self, channel_name, user=None):
+        from channels import Group
         presence, created = Presence.objects.get_or_create(
             room=self,
             channel_name=channel_name,
@@ -78,6 +53,7 @@ class Room(models.Model):
             self.broadcast_changed(added=presence)
 
     def remove_presence(self, channel_name=None, presence=None):
+        from channels import Group
         if presence is None:
             try:
                 presence = Presence.objects.get(room=self, channel_name=channel_name)

@@ -2,7 +2,8 @@ from __future__ import unicode_literals
 
 import functools
 
-from channels_presence.models import Presence
+from channels_presence.models.Presence import Presence
+
 
 def touch_presence(func):
     @functools.wraps(func)
