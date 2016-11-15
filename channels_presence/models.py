@@ -1,4 +1,4 @@
-from __future__ import unicode_literals, absolute_imports
+from __future__ import unicode_literals, absolute_import
 
 import json
 from datetime import timedelta
