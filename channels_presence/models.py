@@ -26,7 +26,8 @@ class Presence(models.Model):
     room = models.ForeignKey('Room', on_delete=models.CASCADE)
     channel_name = models.CharField(max_length=255,
             help_text="Reply channel for connection that is present")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
+            on_delete=models.CASCADE)
     last_seen = models.DateTimeField(default=now)
 
     objects = PresenceManager()
