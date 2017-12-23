@@ -69,11 +69,18 @@ class Room(models.Model):
         return self.channel_name
 
     def add_presence(self, channel_name, user=None):
-        presence, created = Presence.objects.get_or_create(
+        try:
+            presence, created = Presence.objects.get_or_create(
             room=self,
             channel_name=channel_name,
             user=user if (user and user.is_authenticated()) else None
-        )
+            )
+        except TypeError as e:
+            presence, created = Presence.objects.get_or_create(
+            room=self,
+            channel_name=channel_name,
+            user=user if (user and user.is_authenticated) else None
+            )
         if created:
             Group(self.channel_name).add(channel_name)
             self.broadcast_changed(added=presence)
