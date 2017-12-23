@@ -69,10 +69,18 @@ class Room(models.Model):
         return self.channel_name
 
     def add_presence(self, channel_name, user=None):
+        # Check user.is_authenticated for Django 1.10+ and
+        # user.is_authenticated() for prior versions.
+        # https://docs.djangoproject.com/en/1.11/ref/contrib/auth/#django.contrib.auth.models.User.is_authenticated
+        authenticated = user and (
+            user.is_authenticated == True or
+            (callable(user.is_authenticated) and user.is_authenticated())
+        )
+
         presence, created = Presence.objects.get_or_create(
             room=self,
             channel_name=channel_name,
-            user=user if (user and user.is_authenticated()) else None
+            user=user if authenticated else None
         )
         if created:
             Group(self.channel_name).add(channel_name)
