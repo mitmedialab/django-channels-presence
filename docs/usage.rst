@@ -119,8 +119,8 @@ In order to remove connections whose timestamps have expired, we need to
 periodically launch a cleaning task.  This can be accomplished with
 ``Room.objects.prune_presences()``. For convenience, this is implemented as a
 celery task which can be called with celery beat:
-``channels_presence.tasks.prune_presence``.  The management command
-``./manage.py prune_presence`` is also available for calling from cron.
+``channels_presence.tasks.prune_presences``.  The management command
+``./manage.py prune_presences`` is also available for calling from cron.
 
 A second maintenance command, ``Room.objects.prune_rooms()``, removes any ``Room``
 models that have no connections.  This is also available as the celery task
@@ -134,7 +134,7 @@ See the documentation for
 
     CELERYBEAT_SCHEDULE = {
         'prune-presence': {
-            'task': 'channels_presence.tasks.prune_presence',
+            'task': 'channels_presence.tasks.prune_presences',
             'schedule': timedelta(seconds=60)
         },
         'prune-rooms': {
