@@ -9,13 +9,13 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='django-channels-presence',
-    version='0.0.9',
+    version='1.0.0',
     packages=find_packages(),
     include_package_data=True,
     license='MIT License',
     description='Tracking socket presence in "rooms" using django-channels',
     long_description=README,
-    url='https://github.com/unhangout/django-channels-presence/',
+    url='https://github.com/ivahotin/django-channels-presence',
     author='Charlie DeTar',
     author_email='cfd@media.mit.edu',
     classifiers=[

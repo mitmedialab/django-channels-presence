@@ -9,7 +9,11 @@ from django.contrib.auth import get_user_model
 from django.utils.encoding  import python_2_unicode_compatible
 from django.utils.timezone import now
 
-from channels import Group
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
+channel_layer = get_channel_layer()
+
 from channels_presence.signals import presence_changed
 
 class PresenceManager(models.Manager):
@@ -83,7 +87,10 @@ class Room(models.Model):
             user=user if authenticated else None
         )
         if created:
-            Group(self.channel_name).add(channel_name)
+
+            async_to_sync(channel_name.group_add)(
+                self.channel_name, channel_name)
+
             self.broadcast_changed(added=presence)
 
     def remove_presence(self, channel_name=None, presence=None):
@@ -92,7 +99,10 @@ class Room(models.Model):
                 presence = Presence.objects.get(room=self, channel_name=channel_name)
             except Presence.DoesNotExist:
                 return
-        Group(self.channel_name).discard(presence.channel_name)
+
+        async_to_sync(channel_layer.group_discard)(
+            self.channel_name, presence.channed_name)
+
         presence.delete()
         self.broadcast_changed(removed=presence)
 
