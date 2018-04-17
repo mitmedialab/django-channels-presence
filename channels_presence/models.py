@@ -88,7 +88,7 @@ class Room(models.Model):
         )
         if created:
 
-            async_to_sync(channel_name.group_add)(
+            async_to_sync(channel_layer.group_add)(
                 self.channel_name, channel_name)
 
             self.broadcast_changed(added=presence)
