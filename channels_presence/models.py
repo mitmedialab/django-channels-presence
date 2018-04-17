@@ -101,7 +101,7 @@ class Room(models.Model):
                 return
 
         async_to_sync(channel_layer.group_discard)(
-            self.channel_name, presence.channed_name)
+            self.channel_name, presence.channel_name)
 
         presence.delete()
         self.broadcast_changed(removed=presence)
