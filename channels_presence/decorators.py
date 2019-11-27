@@ -4,6 +4,7 @@ import functools
 
 from channels_presence.models import Presence
 
+
 def touch_presence(func):
     @functools.wraps(func)
     def inner(message, *args, **kwargs):
@@ -12,6 +13,7 @@ def touch_presence(func):
             return
         return func(message, *args, **kwargs)
     return inner
+
 
 def remove_presence(func):
     @functools.wraps(func)

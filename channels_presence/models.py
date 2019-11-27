@@ -1,16 +1,18 @@
 from __future__ import unicode_literals, absolute_import
 
-import json
 from datetime import timedelta
 
 from django.db import models
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.utils.encoding  import python_2_unicode_compatible
+from django.utils.encoding import python_2_unicode_compatible
 from django.utils.timezone import now
+from asgiref.sync import async_to_sync
 
-from channels import Group
 from channels_presence.signals import presence_changed
+
+import channels.layers
+
 
 class PresenceManager(models.Manager):
     def touch(self, channel_name):
@@ -21,13 +23,14 @@ class PresenceManager(models.Manager):
             room = presence.room
             room.remove_presence(presence=presence)
 
+
 @python_2_unicode_compatible
 class Presence(models.Model):
     room = models.ForeignKey('Room', on_delete=models.CASCADE)
     channel_name = models.CharField(max_length=255,
-            help_text="Reply channel for connection that is present")
+                                    help_text="Reply channel for connection that is present")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
-            on_delete=models.CASCADE)
+                             on_delete=models.CASCADE)
     last_seen = models.DateTimeField(default=now)
 
     objects = PresenceManager()
@@ -37,6 +40,7 @@ class Presence(models.Model):
 
     class Meta:
         unique_together = [('room', 'channel_name')]
+
 
 class RoomManager(models.Manager):
     def add(self, room_channel_name, user_channel_name, user=None):
@@ -58,12 +62,15 @@ class RoomManager(models.Manager):
     def prune_rooms(self):
         Room.objects.filter(presence__isnull=True).delete()
 
+
 @python_2_unicode_compatible
 class Room(models.Model):
     channel_name = models.CharField(max_length=255, unique=True,
-            help_text="Group channel name for this room")
+                                    help_text="Group channel name for this room")
 
     objects = RoomManager()
+
+    channel_layers = channels.layers.get_channel_layer()
 
     def __str__(self):
         return self.channel_name
@@ -73,8 +80,8 @@ class Room(models.Model):
         # user.is_authenticated() for prior versions.
         # https://docs.djangoproject.com/en/1.11/ref/contrib/auth/#django.contrib.auth.models.User.is_authenticated
         authenticated = user and (
-            user.is_authenticated == True or
-            (callable(user.is_authenticated) and user.is_authenticated())
+                user.is_authenticated is True or
+                (callable(user.is_authenticated) and user.is_authenticated())
         )
 
         presence, created = Presence.objects.get_or_create(
@@ -83,7 +90,7 @@ class Room(models.Model):
             user=user if authenticated else None
         )
         if created:
-            Group(self.channel_name).add(channel_name)
+            async_to_sync(self.channel_layer.group_add)(self.channel_name, channel_name)
             self.broadcast_changed(added=presence)
 
     def remove_presence(self, channel_name=None, presence=None):
@@ -92,7 +99,7 @@ class Room(models.Model):
                 presence = Presence.objects.get(room=self, channel_name=channel_name)
             except Presence.DoesNotExist:
                 return
-        Group(self.channel_name).discard(presence.channel_name)
+        async_to_sync(self.channel_layer.group_discard)(self.channel_name, presence.channel_name)
         presence.delete()
         self.broadcast_changed(removed=presence)
 
@@ -116,7 +123,7 @@ class Room(models.Model):
 
     def broadcast_changed(self, added=None, removed=None, bulk_change=False):
         presence_changed.send(sender=self.__class__,
-            room=self,
-            added=added,
-            removed=removed,
-            bulk_change=bulk_change)
+                              room=self,
+                              added=added,
+                              removed=removed,
+                              bulk_change=bulk_change)
