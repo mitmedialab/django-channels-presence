@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from celery import shared_task
 
 from channels_presence.models import Room

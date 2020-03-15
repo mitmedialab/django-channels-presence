@@ -1,23 +1,23 @@
-from __future__ import unicode_literals
-
 import functools
 
-from asgiref.sync import sync_to_async
 from channels_presence.models import Presence
+
 
 def touch_presence(func):
     @functools.wraps(func)
-    async def inner(consumer, msg, *args, **kwargs):
-        await sync_to_async(Presence.objects.touch)(consumer.channel_name)
-        if msg.get('text') == '"heartbeat"':
+    def inner(consumer, text_data, *args, **kwargs):
+        Presence.objects.touch(consumer.channel_name)
+        if text_data == '"heartbeat"':
             return
-        return await func(consumer, msg, *args, **kwargs)
+        return func(consumer, text_data, *args, **kwargs)
+
     return inner
+
 
 def remove_presence(func):
     @functools.wraps(func)
-    async def inner(consumer, *args, **kwargs):
-        await sync_to_async(Presence.objects.leave_all)(
-            consumer.channel_name)
-        return await func(consumer, *args, **kwargs)
+    def inner(consumer, *args, **kwargs):
+        Presence.objects.leave_all(consumer.channel_name)
+        return func(consumer, *args, **kwargs)
+
     return inner
