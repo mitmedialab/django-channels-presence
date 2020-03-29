@@ -21,16 +21,16 @@ Models
 **Manager**:
 
 ``Room.objects.add(room_chanel_name, user_channel_name, user=None)``
-    Add the given ``user_channel_name`` (e.g. ``message.reply_channel.name``) to
+    Add the given ``user_channel_name`` (e.g. ``consumer.channel_name``) to
     a Room with the name ``room_channel_name``.  If provided, associate the auth
     ``User`` as well.  Creates a new ``Room`` instance if it doesn't exist;
-    creates any needed ``Presence`` instance, and updates the channels
-    ``Group``.  Returns the ``room`` instance.
+    creates any needed ``Presence`` instance, and updates the channels group
+    membership.  Returns the ``room`` instance.
 
 ``Room.objects.remove(room_channel_name, user_channel_name)``
     Remove the given ``user_channel_name`` from the room with
     ``room_channel_name``. Removes relevant ``Presence`` instances, and updates
-    the channels ``Group``.
+    the channels group membership.
 
 ``Room.objects.prune_presences(age_in_seconds=None)``
     Remove any ``Presence`` models whose ``last_seen`` timestamp is older than
@@ -43,7 +43,7 @@ Models
 **Instance properties**:
 
 ``room.channel_name``
-    The channels Group name associated with this room.
+    The channel name associated with the group for this room.
 
 **Instance methods**:
 
@@ -78,7 +78,7 @@ Models
     The room to which this Presence belongs
 
 ``presence.channel_name``
-    The reply channel associated with this Presence
+    The consumer channel name associated with this Presence
 
 ``presence.user``
     A ``settings.AUTH_USER_MODEL`` associated with this Presence, or None
@@ -100,30 +100,38 @@ Decorator for use on ``websocket.receive`` handlers which updates the
 ``last_seen`` timestamp on any ``Presence`` instances associated with the
 client.  If the message being sent is the literal JSON-encoded ``"heartbeat"``,
 message processing stops and the decorator does not call the decorated
-function.
+function.  Note that this decorator is syncronous, so should only be used on
+syncronous handlers.
 
-Example::
+.. code-block:: python
 
-    @touch_presence
-    def ws_receive(message, *args, **kwargs):
-        # ... process any received message except "heartbeat" ...
-        pass
+    from channels.generic.websocket import WebsocketConsumer
+
+    class MyConsumer(WebsocketConsumer):
+        @touch_presence
+        def receive(self, text_data=None, bytes_data=None):
+            pass
+
 
 ``remove_presence``
 ------------------------------------------------
 
-::
+.. code-block:: python
 
     from chanels_presence.decorators import remove_presence
 
 Decorator for use on ``websocket.disconnect`` handlers which removes any
-``Presence`` instances associated with the client.
+``Presence`` instances associated with the client. Note that this decorator is
+syncronous, so should only be used on syncronous handlers.
 
-Example::
+.. code-block:: python
 
-    @remove_presence
-    def ws_disconnect(message):
-        pass
+    from channels.generic.websocket import WebsocketConsumer
+
+    class MyConsumer(WebsocketConsumer):
+        @remove_presence
+        def disconnect(self, close_code):
+            pass
 
 Signals
 ~~~~~~~
@@ -131,12 +139,12 @@ Signals
 ``presence_changed``
 ----------------------------------------------
 
-::
+.. code-block:: python
 
     from channels_presence.signals import presence_changed
 
-This is sent on any addition or removal of a ``Presence`` from a ``Room``.  Use it
-to track when users come and go.
+A Django signal dispatched on any addition or removal of a ``Presence`` from a
+``Room``.  Use it to track when users come and go.
 
 Arguments sent with this signal:
 
@@ -154,57 +162,59 @@ Arguments sent with this signal:
     one presence may have been added or removed, and particular instances will
     not be provided in ``added`` or ``removed`` arguments.
 
-Example::
+Example:
+
+.. code-block:: python
+
+    # app/signals.py
 
     import json
+
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+    from channels_presence.signals import presence_changed
     from django.dispatch import receiver
 
-    from channels import Group
-    from channels_presence.signals import presence_changed
 
-    def broadcast_to_room(room, message):
-        Group(room.channel_name).send({
-            'text': json.dumps(message)
-        })
+    channel_layer = get_channel_layer()
 
     @receiver(presence_changed)
-    def handle_presence_changed(sender, room, added, removed, bulk_change):
-        if added:
-            broadcast_to_room({'added': added.channel_name})
-        if removed:
-            broadcast_to_room({'removed': removed.channel_name})
-        if bulk_change:
-            broadcast_to_room({'presence': [p.channel_name for p in room.presence_set.all()]})
+    def broadcast_presence(sender, room, **kwargs):
+        """
+        Broadcast the new list of present users to the room.
+        """
 
-Convenience
-~~~~~~~~~~~
+        message = {
+          "type": "presence",
+          "payload": {
+              "channel_name": room.channel_name,
+              "members": [user.serialize() for user in room.get_users()],
+              "lurkers": room.get_anonymous_count(),
+          }
+        }
 
-``ws_disconnect``
---------------------------------------------
+        # Prepare a dict for use as a channel layer message. Here, we're using
+        # the type "forward.message", which will magically dispatch to the
+        # channel consumer as a call to the `forward_message` method.
+        channel_layer_message = {
+            "type": "forward.message",
+            "message": json.dumps(message)
+        }
 
-::
+        async_to_sync(channel_layer.group_send)(room.channel_name, channel_layer_message)
 
-    from channels_presence.channels import ws_disconnect
+.. code-block:: python
 
-This is a convenience handler which can be installed to always clean up
-presence on disconnect.  Use it if you don't have any other particular logic
-that needs to happen on disconnect.
+    # app/channels.py: App consumer definition
 
-Example in channels routing::
+    from channels.generic.websocket import WebsocketConsumer
 
-    from channels.routing import route
+    class AppConsumer(WebsocketConsumer):
+        def forward_message(self, event):
+            """
+            Utility handler for messages to be broadcasted to groups.  Will be
+            called from channel layer messages with `"type": "forward.message"`.
+            """
+            self.send(event["message"])
 
-    channel_routing = [
-        route("websocket.disconnect", "channels_presence.channels.ws_disconnect"),
-    ]
 
-The implementation is simply::
-
-    # channels_presence/channels.py
-
-    from channels_presence.decorators import remove_presence
-
-    @remove_presence
-    def ws_disconnect(message, **kwargs):
-        pass
-    
