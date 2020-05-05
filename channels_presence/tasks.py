@@ -2,7 +2,7 @@ from celery import shared_task
 
 from channels_presence.models import Room
 
-@shared_task(name='channels_presence.tasks.prune_presence')
+@shared_task(name='channels_presence.tasks.prune_presences')
 def prune_presence():
     Room.objects.prune_presences()
 
