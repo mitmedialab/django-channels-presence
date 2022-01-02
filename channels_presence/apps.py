@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class RoomsConfig(AppConfig):
-    name = 'rooms'
+    name = 'channels_presence'
